@@ -4,6 +4,8 @@ import os
 import threading
 import urllib.request
 from ResumeDownload import *
+from CommonFunctions import *
+from SingleConnectionDownloading import *
 
 def parseArguments():
 
@@ -24,20 +26,9 @@ def parseArguments():
 	return resumeDownload, numOfSimultaneousConn, interval, numOfFilesToDownload, SaveOnAddress, filesAddresses
 
 
-def getFileSize(url):
-	data = urllib.request.urlopen(url)
-	return float(data.info()['Content-Length'])
-
-def acceptsByteRange(url):
-	#print(url)
-	data = urllib.request.urlopen(url)
-	#print(str(data.getheader('Accept-Ranges')) == "bytes")
-	return str(data.getheader('Accept-Ranges')) == "bytes"
-
 def downloadfile(link, byteRange, fileName, fileNum, threadNum):
 
 	byteRange = (int(byteRange[0]), int(byteRange[1]))
-	print("Byte Range:", byteRange)
 
 	countBytes = byteRange[0]
 	increment = 51199
@@ -48,8 +39,6 @@ def downloadfile(link, byteRange, fileName, fileNum, threadNum):
 		bytesToDownload = 'bytes=%s-%s' % (countBytes, countBytes+increment)
 		req.add_header('Range', bytesToDownload)
 		f = urllib.request.urlopen(req)
-
-		print("Writing file at:", sA+fileName)
 
 		with open(sA+fileName, 'ab') as output:
 			output.write(f.read())
@@ -64,29 +53,10 @@ def downloadfile(link, byteRange, fileName, fileNum, threadNum):
 		if (countBytes+51199) > byteRange[1]: increment = byteRange[1]-countBytes
 
 	mergeDictionary[fileNum] += 1
-	if mergeDictionary[fileNum] == simulConn: downloadComplete(fileName)
+	if mergeDictionary[fileNum] == simulConn: 
+		downloadComplete(fileName[1:], simulConn)
 	
 		
-def downloadWholeFile(link, filePath):
-	f = urllib.request.urlopen(link)
-	with open(filePath, "wb") as output:
-		output.write(f.read())
-		
-
-def downloadComplete( fileName):
-	for i in range(simulConn):
-		with open(str(i)+fileName[1:], "rb") as aFile:
-			data = aFile.read()
-		with open(fileName[1:], "ab") as com:
-			com.write(data)
-	deleteParts(fileName)
-
-
-def deleteParts(fileName):
-	for i in range(simulConn):
-		os.remove(fileName[1:])
-	os.remove(fileName+" Record.json")
-
 
 def createNewDownloadThread(link, byteRange, fileName, fileNum, threadNum):
     download_thread = threading.Thread(target=downloadfile, args=(link, byteRange, fileName, fileNum, threadNum))
@@ -114,8 +84,19 @@ def processThreadsForFiles(file, fileName, fileNum):
 		no += 1 
 
 	else:
-		downloadWholeFile(file, sA+fileName)
+		print("File stored on", sA)
+		print("\n\n\nDownloading\n\n\n", fileName)
+		completeFileDownload = threading.Thread(target=downloadWholeFile, args=(file, sA+fileName))
+		completeFileDownload.start()
 
+
+def startNewFiles(newFiles):
+	global no
+	for file in newFiles:
+		fileName = file[file.rfind("/")+1 : ]
+		fileThread = threading.Thread(target=processThreadsForFiles, args=(file, fileName, no))
+		fileThread.start()
+		no += 1
 
 resumeDownload, simulConn, interval, fTD, sA, fA = parseArguments()
 
@@ -137,8 +118,7 @@ for file in fA:
 	fileName = file[file.rfind("/")+1 : ]
 	files.append(fileName)
 	filesAndUrls[fileName] = file
-	#fileThread = threading.Thread(target=processThreadsForFiles, args=(file, fileName, no))
-	#fileThread.start()
-
+	
 if resumeDownload:
-	seperateFiles(files,filesAndUrls, sA)
+	newFiles = seperateFiles(files,filesAndUrls, sA)
+	startNewFiles(newFiles)

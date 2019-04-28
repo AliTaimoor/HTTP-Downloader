@@ -2,7 +2,7 @@ import os
 import json
 import urllib.request
 import threading
-from client import *
+from CommonFunctions import *
 
 saveOnAddress = str()
 recordsList = list()
@@ -19,28 +19,35 @@ def seperateFiles(filesToDownload, urls, addressOnDisk):
 	print(filesToDownload)
 
 	for file in filesToDownload:
+
 		if (file + " Record.json") in os.listdir(addressOnDisk):
 			with open(file+" Record.json") as fin:
 				recordDictionary = json.load(fin)
 			print("Resuming", file)
 			recordsDictForOldFiles[file] = (recordDictionary, urls[file])
-			makeThreadsToResumeFiles(recordsDictForOldFiles)
-			remakeThreads(file, urls[file], recordDictionary)
+			
+			#remakeThreads(file, urls[file], recordDictionary)
 
 		else:
-			print("File", file, "is not present in the directory. Download will start over!") 
+			newFiles.append(urls[file])
+
+	makeThreadsToResumeFiles(recordsDictForOldFiles)
+
+	return newFiles
 
 
 def makeThreadsToResumeFiles(dictionaryForOldFiles):
-	for file in dictionaryForOldFiles:
-		fileThread = threading.Thread(target=remakeThreads, args(file, dictionaryForOldFiles[1], dictionaryForOldFiles[0]))
-		fileThread.start()
 
-def remakeThreads(fileName, link, bytesRecord):
-	
 	global tracker
 
-	completionTracker[tracker] = 0
+	for file in dictionaryForOldFiles:
+		fileThread = threading.Thread(target=remakeThreads, args=(file, tracker, dictionaryForOldFiles[file][1], dictionaryForOldFiles[file][0]))
+		fileThread.start()
+		tracker += 1
+
+def remakeThreads(fileName, fileNum, link, bytesRecord):
+	
+	completionTracker[fileNum] = 0
 	recordsList.append(dict())
 	
 	for i in bytesRecord:
@@ -48,10 +55,8 @@ def remakeThreads(fileName, link, bytesRecord):
 		totalFileSize = getFileSize(link)
 		sizeForEachThread = totalFileSize/len(bytesRecord)
 		byteRange = (bytesRecord[i][1]+1, int(sizeForEachThread*(int(i)+1))-1)
-		resumeDownloadThread = threading.Thread(target=resumeDownload, args=(fileName, link, byteRange,tracker, i, len(bytesRecord)))
+		resumeDownloadThread = threading.Thread(target=resumeDownload, args=(fileName, link, byteRange,fileNum, i, len(bytesRecord)))
 		resumeDownloadThread.start()
-
-	tracker += 1
 
 
 def resumeDownload(fileName, link, byteRange, fileNum, threadNum, numberOfOldThreads):
@@ -69,13 +74,8 @@ def resumeDownload(fileName, link, byteRange, fileNum, threadNum, numberOfOldThr
 		with open(saveOnAddress+threadNum+fileName, "ab") as output:
 			output.write(f.read())
 
-		print("Bytes done:", bytesToDownload)
-		print("RecordsList: ", recordsList)
-		print("File Number: ", fileNum)
-		print("Thread Number: ", threadNum)
-
 		recordsList[fileNum][threadNum] = (byteRange[0], countBytes+increment)
-		print("Bytes done:", (byteRange[0], countBytes+increment))
+		
 
 		with open(saveOnAddress+fileName+" Record.json", "w") as record:
 			record.write(json.dumps(recordsList[fileNum]))
@@ -85,32 +85,8 @@ def resumeDownload(fileName, link, byteRange, fileNum, threadNum, numberOfOldThr
 		if(countBytes+51199) > byteRange[1]: increment = byteRange[1]-countBytes
 
 	completionTracker[fileNum] += 1
-	if(completionTracker[fileNum] == numberOfOldThreads): finishDownload(fileName, numberOfOldThreads) 
 
-
-
-def finishDownload(fileName, numberOfOldThreads):
-	for i in range(numberOfOldThreads):
-		with open(str(i)+fileName, "rb") as aFile:
-			data = aFile.read()
-		with open(fileName, "ab") as com:
-			com.write(data)
-	deleteExistingParts(fileName, numberOfOldThreads)
-
-
-def deleteExistingParts(fileName, numberOfOldThreads):
-	for i in range(numberOfOldThreads):
-		os.remove(str(i)+fileName)
-	os.remove(fileName + " Record.json")
-
-
-def getFileSize(url):
-	data = urllib.request.urlopen(url)
-	return float(data.info()['Content-Length'])
-
-
-
-
+	if(completionTracker[fileNum] == numberOfOldThreads): downloadComplete(fileName, numberOfOldThreads) 
 
 
 
