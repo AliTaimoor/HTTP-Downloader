@@ -7,6 +7,8 @@ from ResumeDownload import *
 from CommonFunctions import *
 from SingleConnectionDownloading import *
 from MultipleConnectionDownloading import *
+import Metrics
+
 
 def parseArguments():
 
@@ -29,11 +31,11 @@ def parseArguments():
 
 
 def startNewFiles(newFiles):
+	
 	global no
 	for file in newFiles:
 		fileName = file[file.rfind("/")+1 : ]
-		fileThread = threading.Thread(target=processThreadsForFiles, args=(file, fileName, no, simulConn, sA))
-		fileThread.start()
+		threading.Thread(target=processThreadsForFiles, args=(file, fileName, no, simulConn, sA)).start()
 		no += 1
 
 resumeDownload, simulConn, interval, fTD, sA, fA = parseArguments()
@@ -49,6 +51,9 @@ filesAndUrls = dict()
 #print("Files will be saved on", sA )
 #print("Files will be downloaded from:", fA)
 
+#timer = threading.Timer(interval, Metrics.showMetrics, None, None)
+#timer.start()
+
 for file in fA:
 	
 	fileName = file[file.rfind("/")+1 : ]
@@ -57,4 +62,9 @@ for file in fA:
 	
 if resumeDownload:
 	newFiles = seperateFiles(files,filesAndUrls, sA)
-	startNewFiles(newFiles)
+else: 
+	newFiles = fA
+
+startNewFiles(newFiles)
+
+threading.Thread(target=Metrics.startSchedule, args=(interval,)).start()
