@@ -1,20 +1,18 @@
+#------------------IMPORTS---------------------#
+
 import sys
-import json
-import os
 import threading
-import urllib.request
-from ResumeDownload import *
-from CommonFunctions import *
-from SingleConnectionDownloading import *
-from MultipleConnectionDownloading import *
+import ResumeDownload
+import MultipleConnectionDownloading
 import Metrics
 
+#---------------------This function parses the command line arguments and extracts the tags---------------#
 
 def parseArguments():
 
 	parameters = sys.argv[1 : ]
 
-	resumeDownload = "-r" in parameters
+	resumeDownload = "-r" in parameters 
 
 	numOfSimultaneousConn = int(parameters[parameters.index("-n") + 1])
 	interval = float(parameters[parameters.index("-i") + 1])
@@ -29,30 +27,23 @@ def parseArguments():
 	return resumeDownload, numOfSimultaneousConn, interval, numOfFilesToDownload, SaveOnAddress, filesAddresses
 
 
+#----------------This function creates new download threads for every file that has to be downloaded from start.-----------------#
 
 def startNewFiles(newFiles):
 	
 	global no
 	for file in newFiles:
 		fileName = file[file.rfind("/")+1 : ]
-		threading.Thread(target=processThreadsForFiles, args=(file, fileName, no, simulConn, sA)).start()
+		threading.Thread(target=MultipleConnectionDownloading.processThreadsForFiles, args=(file, fileName, no, simulConn, sA)).start()
 		no += 1
+
+#------------------MAIN PROGRAM-------------------#
 
 resumeDownload, simulConn, interval, fTD, sA, fA = parseArguments()
 
-no = 0
-files = list()
-filesAndUrls = dict()
-
-#print(resumeDownload)
-#print("Number of simultaneous connection:", simulConn)
-#print("Interval", interval)
-#print("Number of files to download:", fTD)
-#print("Files will be saved on", sA )
-#print("Files will be downloaded from:", fA)
-
-#timer = threading.Timer(interval, Metrics.showMetrics, None, None)
-#timer.start()
+no = 0 #This function is used as an id by every new file. Incremeneted for every file.
+files = list() #This list will contain the names of all the files
+filesAndUrls = dict() #This dictionary will contain fileName as keys and their urls as values.
 
 for file in fA:
 	
@@ -61,10 +52,10 @@ for file in fA:
 	filesAndUrls[fileName] = file
 	
 if resumeDownload:
-	newFiles = seperateFiles(files,filesAndUrls, sA)
+	newFiles = ResumeDownload.seperateFiles(files,filesAndUrls, sA)
 else: 
-	newFiles = fA
+	newFiles = fA #If resumeDownload is false, all the files have to be downloaded from start.
 
 startNewFiles(newFiles)
 
-threading.Thread(target=Metrics.startSchedule, args=(interval,)).start()
+threading.Thread(target=Metrics.startSchedule, args=(interval,)).start() #Start scheduler.
